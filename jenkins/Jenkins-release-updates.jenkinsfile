@@ -1,0 +1,72 @@
+// Jenkins job for registering or getting the access key using code-pushp-server 
+
+
+properties([
+  parameters(
+    [booleanParam(
+      name: 'PRODUCTION_INSTANCE',
+      defaultValue: false,
+      description: 'Register or Autheticate Jenkin Job with Dev Instance or Production Instance and get the access key'
+    )]
+  )
+])
+
+
+def SERVER_URL = 'https://codepush-dev2.azurewebsites.net'
+try {
+  if (env.PRODUCTION_INSTANCE != null && env.PRODUCTION_INSTANCE.toBoolean()) {
+    // Use Production Server Url here
+    SERVER_URL = 'https://codepush-dev2.azurewebsites.net'
+  }
+} catch (all) {
+  // Mode hasn't been provided, will fall back to 'debug'
+  // This might happen on first build of a PR or if you blank out the MDOE
+}
+
+node('Go-Windows-AWS') {
+
+        stage('Clean Directory') {
+            timeout(time: 30, unit: 'MINUTES') {
+              if (fileExists('code-push-server')) {
+                bat 'rmdir /S /Q code-push-server' // For Windows
+              }
+            }
+        }
+
+        stage('Clone Code Push Server Repository') {
+            timeout(time: 30, unit: 'MINUTES') {
+              bat 'git clone https://github.com/ServiceMax-Engineering/code-push-server.git'
+            }
+        }
+        
+        stage('Install Dependencies') {
+            timeout(time: 30, unit: 'MINUTES') {
+              dir('code-push-server/cli') {
+                    bat 'npm install'
+              }
+            }
+        }
+        
+        stage('Build CLI') {
+            timeout(time: 30, unit: 'MINUTES') {
+              dir('code-push-server/cli') {
+                    bat 'npm run build'
+              }
+            }
+        }
+        
+        stage('Install CLI Globally') {
+            timeout(time: 30, unit: 'MINUTES') {
+              dir('code-push-server/cli') {
+                    bat 'npm install -g .'
+              }
+            }
+        }
+        
+        // stage('Register CodePush Service') {
+        //     timeout(time: 30, unit: 'MINUTES') {
+        //       bat 'code-push-standalone register ${SERVER_URL}'
+        //     }
+        // }
+  
+}
