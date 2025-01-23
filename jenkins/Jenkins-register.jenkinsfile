@@ -23,7 +23,7 @@ try {
   // This might happen on first build of a PR or if you blank out the MDOE
 }
 
-node('Code-Push-Server-Authentication-AWS') {
+node('Go-Windows-AWS') {
 
     stages {
         stage('Clone Code Push Server Repository') {
