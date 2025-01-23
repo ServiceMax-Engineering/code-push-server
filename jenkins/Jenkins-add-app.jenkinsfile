@@ -1,0 +1,81 @@
+/*
+    1. To execute this job, first we need to execute Jenkins-register Job. This will give access key and paste it in terminal or command line. Please
+    save this access key in Jenkins env variable.
+    2. Once above step is done then only we have to run this job.
+    3. Once this job is done then it will generate Staging and Production Deployment keys. Please save them in Jenkins' Env variable.
+*/
+
+
+properties([
+  parameters(
+    [booleanParam(
+      name: 'PRODUCTION_INSTANCE',
+      defaultValue: false,
+      description: 'Register or Autheticate Jenkin Job with Dev Instance or Production Instance and get the access key'
+    ),
+    string(
+      name: "CODEPUSH_APPLICATION_NAME",
+      defaultValue: "",
+      description: "Codepush new app name MyApp-iOS or MyApp-Android or MyApp-Windows"
+    )]
+  )
+])
+
+
+def SERVER_URL = 'https://codepush-dev2.azurewebsites.net'
+def CODEPUSH_APPLICATION_NAME = "";
+try {
+  if (env.PRODUCTION_INSTANCE != null && env.PRODUCTION_INSTANCE.toBoolean()) {
+    // Use Production Server Url here
+    SERVER_URL = 'https://codepush-dev2.azurewebsites.net'
+  }
+
+  if (env.CODEPUSH_APPLICATION_NAME) {
+    CODEPUSH_APPLICATION_NAME = env.CODEPUSH_APPLICATION_NAME;
+  }
+
+} catch (all) {
+  // Mode hasn't been provided, will fall back to 'debug'
+  // This might happen on first build of a PR or if you blank out the MDOE
+}
+
+node('Go-Windows-AWS') {
+
+        stage('Clean Directory') {
+            timeout(time: 30, unit: 'MINUTES') {
+              if (fileExists('code-push-server')) {
+                bat 'rmdir /S /Q code-push-server' // For Windows
+              }
+            }
+        }
+
+        stage('Clone Code Push Server Repository') {
+            timeout(time: 30, unit: 'MINUTES') {
+              bat 'git clone https://github.com/ServiceMax-Engineering/code-push-server.git'
+            }
+        }
+        
+        stage('Install CLI Globally') {
+            timeout(time: 30, unit: 'MINUTES') {
+              dir('code-push-server/cli') {
+                    bat 'npm install'
+                    bat 'npm run build'
+                    bat 'npm install -g .'
+              }
+            }
+        }
+
+        // stage('Login to ServieceMax app center') {
+        //     timeout(time: 30, unit: 'MINUTES') {
+        //       dir('code-push-server/cli') {
+        //             bat 'code-push-standalone login --accessKey <accessKey>'
+        //       }
+        //     }
+        // }
+        
+        stage('Add new app') {
+            timeout(time: 30, unit: 'MINUTES') {
+              bat 'code-push-standalone app add ${CODEPUSH_APPLICATION_NAME}'
+            }
+        }
+}
