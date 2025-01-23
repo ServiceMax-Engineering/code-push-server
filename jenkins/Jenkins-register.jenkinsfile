@@ -25,38 +25,48 @@ try {
 
 node('Go-Windows-AWS') {
 
-    stages {
+        stage('Clean Directory') {
+            timeout(time: 30, unit: 'MINUTES') {
+              if (fileExists('code-push-server')) {
+                bat 'rmdir /S /Q code-push-server' // For Windows
+              }
+            }
+        }
+
         stage('Clone Code Push Server Repository') {
-            steps {
-                bat 'git clone https://github.com/ServiceMax-Engineering/code-push-server.git'
+            timeout(time: 30, unit: 'MINUTES') {
+              bat 'git clone https://github.com/ServiceMax-Engineering/code-push-server.git'
             }
         }
+        
         stage('Install Dependencies') {
-            steps {
-                dir('code-push-server/cli') {
+            timeout(time: 30, unit: 'MINUTES') {
+              dir('code-push-server/cli') {
                     bat 'npm install'
-                }
+              }
             }
         }
+        
         stage('Build CLI') {
-            steps {
-                dir('code-push-server/cli') {
+            timeout(time: 30, unit: 'MINUTES') {
+              dir('code-push-server/cli') {
                     bat 'npm run build'
-                }
+              }
             }
         }
+        
         stage('Install CLI Globally') {
-            steps {
-                dir('code-push-server/cli') {
+            timeout(time: 30, unit: 'MINUTES') {
+              dir('code-push-server/cli') {
                     bat 'npm install -g .'
-                }
+              }
             }
         }
+        
         stage('Register CodePush Service') {
-            steps {
-                bat 'code-push-standalone register ${SERVER_URL}'
+            timeout(time: 30, unit: 'MINUTES') {
+              bat 'code-push-standalone register ${SERVER_URL}'
             }
         }
-    }
   
 }
