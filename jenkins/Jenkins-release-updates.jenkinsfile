@@ -1,4 +1,9 @@
-// Jenkins job for registering or getting the access key using code-pushp-server 
+/*
+    1. To execute this job, first we need to execute Jenkins-register Job. This will give access key and paste it in terminal or command line. Please
+    save this access key in Jenkins env variable.
+    2. Once above step is done then only we have to run this job.
+    3. Once this job is done then it will generate Staging and Production Deployment keys. Please save them in Jenkins' Env variable.
+*/
 
 
 properties([
@@ -7,17 +12,57 @@ properties([
       name: 'PRODUCTION_INSTANCE',
       defaultValue: false,
       description: 'Register or Autheticate Jenkin Job with Dev Instance or Production Instance and get the access key'
+    ),
+    string(
+      name: "CODEPUSH_APPLICATION_NAME",
+      defaultValue: "",
+      description: "Codepush new app name MyApp-iOS or MyApp-Android or MyApp-Windows"
+    ),
+    string(
+      name: "CODEPUSH_TARGET_VERSION",
+      defaultValue: "",
+      description: "Codepush Target binary version(e.g 7.0)"
+    ), 
+    choice(
+      choices: ['Staging', 'Production'].join('\n'),
+      description: 'Select \'Staging\' for ServiceMax AppCenter Dev testing.\nSelect \'Production\' for ServiceMax AppCenter  Production',
+      name: 'DEPLOYMENT_MODE'
+    ), choice(
+      choices: ['iOS', 'Android', 'Windows'].join('\n'),
+      description: 'Select the platform to release the code push updates',
+      name: 'PLATFORM_MODE'
     )]
   )
 ])
 
 
 def SERVER_URL = 'https://codepush-dev2.azurewebsites.net'
+def CODEPUSH_APPLICATION_NAME = "";
+def DEPLOYMENT_MODE = ""
+def PLATFORM_MODE = ""
+def CODEPUSH_TARGET_VERSION = ""
 try {
   if (env.PRODUCTION_INSTANCE != null && env.PRODUCTION_INSTANCE.toBoolean()) {
     // Use Production Server Url here
     SERVER_URL = 'https://codepush-dev2.azurewebsites.net'
   }
+
+  if (env.CODEPUSH_APPLICATION_NAME) {
+    CODEPUSH_APPLICATION_NAME = env.CODEPUSH_APPLICATION_NAME
+  }
+
+  if (env.DEPLOYMENT_MODE) {
+    DEPLOYMENT_MODE = env.DEPLOYMENT_MODE;
+  }
+
+  if (env.PLATFORM_MODE) {
+    PLATFORM_MODE = env.PLATFORM_MODE;
+  }
+
+  if (env.CODEPUSH_TARGET_VERSION) {
+    CODEPUSH_TARGET_VERSION = env.CODEPUSH_TARGET_VERSION
+  }
+
 } catch (all) {
   // Mode hasn't been provided, will fall back to 'debug'
   // This might happen on first build of a PR or if you blank out the MDOE
@@ -25,7 +70,32 @@ try {
 
 node('Go-Windows-AWS') {
 
-        stage('Clean Directory') {
+    try {
+
+        def id = env.BUILD_ID
+        def version = "12.0.0.${id}"
+        def bundleArtifactPath = ''
+        def zipArtifactPath = ''
+
+        currentBuild.displayName = "${version}"
+        sh 'rm -rf ${WORKSPACE}/*'
+
+        stage('Checkout') {
+            timeout(time: 30, unit: 'MINUTES') {
+                // checkout scm
+                bat '''git clone https://github.com/ServiceMax-Engineering/ufsa-windows.git
+                     cd ufsa-windows
+                     git submodule update --init --recursive'''
+            }
+        }
+
+        stage('Install Dependencies') {
+            timeout(time: 30, unit: 'MINUTES') {
+                bat 'npx npm@6.14.17 install'
+            }
+        }
+
+        stage('Code Push Clean Directory') {
             timeout(time: 30, unit: 'MINUTES') {
               if (fileExists('code-push-server')) {
                 bat 'rmdir /S /Q code-push-server' // For Windows
@@ -38,35 +108,39 @@ node('Go-Windows-AWS') {
               bat 'git clone https://github.com/ServiceMax-Engineering/code-push-server.git'
             }
         }
-        
-        stage('Install Dependencies') {
-            timeout(time: 30, unit: 'MINUTES') {
-              dir('code-push-server/cli') {
-                    bat 'npm install'
-              }
-            }
-        }
-        
-        stage('Build CLI') {
-            timeout(time: 30, unit: 'MINUTES') {
-              dir('code-push-server/cli') {
-                    bat 'npm run build'
-              }
-            }
-        }
-        
+
         stage('Install CLI Globally') {
             timeout(time: 30, unit: 'MINUTES') {
               dir('code-push-server/cli') {
+                    bat 'npm install'
+                    bat 'npm run build'
                     bat 'npm install -g .'
               }
             }
         }
-        
-        // stage('Register CodePush Service') {
+
+        // stage('Login to ServieceMax app center') {
         //     timeout(time: 30, unit: 'MINUTES') {
-        //       bat 'code-push-standalone register ${SERVER_URL}'
+        //       dir('code-push-server/cli') {
+        //             bat 'code-push-standalone login --accessKey <accessKey>'
+        //       }
         //     }
         // }
-  
+
+        stage('Releasing Updates') {
+            timeout(time: 30, unit: 'MINUTES') {
+              //def notes = "\"${sh(returnStdout: true, script: "git log --pretty=format:'%s' -1")}\""
+              dir('ufsa-windows') {
+                bat 'code-push-standalone release-react ${CODEPUSH_APPLICATION_NAME} ${PLATFORM_MODE} -d ${DEPLOYMENT_MODE} --targetBinaryVersion ${CODEPUSH_TARGET_VERSION} --mandatory --clear-cache'
+              }
+            }
+        }
+
+    } catch (all) {
+        // Clean up workspace on build failure
+        //step([$class: 'WsCleanup'])
+        error "Build failed: ${all}"
+        currentBuild.result = 'FAILURE'
+    }
+
 }
