@@ -96,7 +96,7 @@ node('Go-Windows-AWS') {
                      git clone https://github.com/ServiceMax-Engineering/ufsa-windows.git
                      cd ufsa-windows
                      git fetch --all
-                     git checkout ${RELEASE_BRANCH}
+                     git checkout ${RELEASE_BRANCH_NAME}
                      git submodule update --init --recursive
                 """
             }
