@@ -88,6 +88,35 @@ node('Go-Windows-AWS') {
         def zipArtifactPath = ''
 
         currentBuild.displayName = "${version}"
+        
+        if (!RELEASE_BRANCH_NAME.startsWith("release-")) {
+            throw new Exception("Invalid branch name. The branch name should start with release-")
+        }
+        
+        if(!CODEPUSH_TARGET_VERSION || CODEPUSH_TARGET_VERSION == '') {
+            throw new Exception("Target version is needed")
+        }
+        
+        if(!DEPLOYMENT_MODE || DEPLOYMENT_MODE == '') {
+            throw new Exception("Deploymenet Mode is needed")
+        }
+        
+        if(!CODEPUSH_APPLICATION_NAME || CODEPUSH_APPLICATION_NAME == '') {
+            throw new Exception("Code Push Application name is needed")
+        }
+        
+        if(!PLATFORM_MODE || PLATFORM_MODE == '') {
+            throw new Exception("Platform is needed is needed")
+        }
+        
+        def pattern = "(^(1|[1-9]\\d*)\\.?(\\d+\\.)?(\\*|\\d+)\$)"
+        
+        if(CODEPUSH_TARGET_VERSION == ''){
+            throw new Exception("Codepush Target version is not specified")
+        }
+        if(!CODEPUSH_TARGET_VERSION.matches(pattern)){
+            throw new Exception("Invalid Codepush Target Version")
+        }
 
         stage('Checkout') {
             timeout(time: 30, unit: 'MINUTES') {
@@ -112,24 +141,36 @@ node('Go-Windows-AWS') {
 
         stage('Code Push Clean Directory') {
             timeout(time: 30, unit: 'MINUTES') {
-              if (fileExists('code-push-server')) {
-                bat 'rmdir /S /Q code-push-server' // For Windows
+              try {
+                  if (fileExists('code-push-server')) {
+                    bat 'rmdir /S /Q code-push-server' // For Windows
+                  }
+              } catch (exception) {
+                  echo "Code push clean directory failed: ${exception}"
               }
             }
         }
 
         stage('Clone Code Push Server Repository') {
             timeout(time: 30, unit: 'MINUTES') {
-              bat 'git clone https://github.com/ServiceMax-Engineering/code-push-server.git'
+              try {
+                  bat "git clone https://github.com/ServiceMax-Engineering/code-push-server.git"
+              } catch(exception) {
+                  echo "Clone Code push server failed: ${exception}"
+              }
             }
         }
 
         stage('Install CLI Globally') {
             timeout(time: 30, unit: 'MINUTES') {
-              dir('code-push-server/cli') {
+              try {
+                  dir('code-push-server/cli') {
                     bat 'npm install'
                     bat 'npm run build'
                     bat 'npm install -g .'
+                  }
+              } catch(exception) {
+                  echo "Code push server CLI failed: ${exception}"
               }
             }
         }
@@ -145,8 +186,14 @@ node('Go-Windows-AWS') {
         stage('Releasing Updates') {
             timeout(time: 30, unit: 'MINUTES') {
               //def notes = "\"${sh(returnStdout: true, script: "git log --pretty=format:'%s' -1")}\""
-              dir('ufsa-windows') {
-                bat "code-push-standalone release-react ${CODEPUSH_APPLICATION_NAME} ${PLATFORM_MODE} -d ${DEPLOYMENT_MODE} --targetBinaryVersion ${CODEPUSH_TARGET_VERSION} --mandatory --clear-cache"
+              
+              try {
+                  dir('ufsa-windows') {
+                    bat "code-push-standalone release-react ${CODEPUSH_APPLICATION_NAME} ${PLATFORM_MODE} -d ${DEPLOYMENT_MODE} --targetBinaryVersion ${CODEPUSH_TARGET_VERSION} --mandatory --disable-duplicate-release-error --clear-cache"
+                  }
+              } catch (exception) {
+                  echo "Releasing updates failed: ${exception}"
+                  error "Code push release-react failed: ${exception}"
               }
             }
         }

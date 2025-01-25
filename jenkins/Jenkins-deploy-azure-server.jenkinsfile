@@ -85,14 +85,9 @@ node('Go-Windows-AWS') {
         //     }
         // }
         
-        stage('Add new app') {
+        stage('Deploy to Azure App Service') {
             timeout(time: 30, unit: 'MINUTES') {
-              try {
-                bat "code-push-standalone app add ${CODEPUSH_APPLICATION_NAME}"
-              } catch(exception) {
-                  echo "Add new app failed: ${exception}"
-                  error "Add new app failed: ${exception}"
-              }
+              
             }
         }
 }

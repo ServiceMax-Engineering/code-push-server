@@ -25,47 +25,50 @@ try {
 
 node('Go-Windows-AWS') {
 
-        stage('Clean Directory') {
+         stage('Clean Directory') {
             timeout(time: 30, unit: 'MINUTES') {
-              if (fileExists('code-push-server')) {
-                bat 'rmdir /S /Q code-push-server' // For Windows
+              try {
+                  if (fileExists('code-push-server')) {
+                    bat 'rmdir /S /Q code-push-server' // For Windows
+                  }
+              } catch (exception) {
+                  echo "Code push clean directory failed: ${exception}"
               }
             }
         }
 
         stage('Clone Code Push Server Repository') {
             timeout(time: 30, unit: 'MINUTES') {
-              bat 'git clone https://github.com/ServiceMax-Engineering/code-push-server.git'
-            }
-        }
-        
-        stage('Install Dependencies') {
-            timeout(time: 30, unit: 'MINUTES') {
-              dir('code-push-server/cli') {
-                    bat 'npm install'
-              }
-            }
-        }
-        
-        stage('Build CLI') {
-            timeout(time: 30, unit: 'MINUTES') {
-              dir('code-push-server/cli') {
-                    bat 'npm run build'
-              }
+                try {
+                  bat "git clone https://github.com/ServiceMax-Engineering/code-push-server.git"
+                } catch(exception) {
+                  echo "Clone Code push server failed: ${exception}"
+                }
             }
         }
         
         stage('Install CLI Globally') {
             timeout(time: 30, unit: 'MINUTES') {
-              dir('code-push-server/cli') {
+               try {
+                  dir('code-push-server/cli') {
+                    bat 'npm install'
+                    bat 'npm run build'
                     bat 'npm install -g .'
+                  }
+              } catch(exception) {
+                  echo "Code push server CLI failed: ${exception}"
               }
             }
         }
         
         stage('Register CodePush Service') {
             timeout(time: 30, unit: 'MINUTES') {
-              bat "code-push-standalone register ${SERVER_URL}"
+              try {
+                bat "code-push-standalone register ${SERVER_URL}"
+              } catch(exception) {
+                  echo "Register CodePush Service failed: ${exception}"
+                  error "Register CodePush Service failed: ${exception}"
+              }
             }
         }
   
