@@ -19,6 +19,11 @@ properties([
       description: "Codepush new app name MyApp-iOS or MyApp-Android or MyApp-Windows"
     ),
     string(
+      name: "RELEASE_BRANCH_NAME",
+      defaultValue: "",
+      description: "ufsa-windows relese branch name(e.g release-11.0)"
+    ), 
+    string(
       name: "CODEPUSH_TARGET_VERSION",
       defaultValue: "",
       description: "Codepush Target binary version(e.g 7.0)"
@@ -41,10 +46,15 @@ def CODEPUSH_APPLICATION_NAME = "";
 def DEPLOYMENT_MODE = ""
 def PLATFORM_MODE = ""
 def CODEPUSH_TARGET_VERSION = ""
+def RELEASE_BRANCH_NAME = ""
 try {
   if (env.PRODUCTION_INSTANCE != null && env.PRODUCTION_INSTANCE.toBoolean()) {
     // Use Production Server Url here
     SERVER_URL = 'https://codepush-dev2.azurewebsites.net'
+  }
+
+  if (env.RELEASE_BRANCH_NAME) {
+    RELEASE_BRANCH_NAME = env.RELEASE_BRANCH_NAME;
   }
 
   if (env.CODEPUSH_APPLICATION_NAME) {
@@ -78,20 +88,25 @@ node('Go-Windows-AWS') {
         def zipArtifactPath = ''
 
         currentBuild.displayName = "${version}"
-        sh 'rm -rf ${WORKSPACE}/*'
 
         stage('Checkout') {
             timeout(time: 30, unit: 'MINUTES') {
                 // checkout scm
-                bat '''git clone https://github.com/ServiceMax-Engineering/ufsa-windows.git
+                bat """
+                     git clone https://github.com/ServiceMax-Engineering/ufsa-windows.git
                      cd ufsa-windows
-                     git submodule update --init --recursive'''
+                     git fetch --all
+                     git checkout ${RELEASE_BRANCH_NAME}
+                     git submodule update --init --recursive
+                """
             }
         }
 
         stage('Install Dependencies') {
-            timeout(time: 30, unit: 'MINUTES') {
-                bat 'npx npm@6.14.17 install'
+            timeout(time: 300, unit: 'MINUTES') {
+                dir('ufsa-windows') {
+                    bat 'npx npm@6.14.17 install'
+                }
             }
         }
 
@@ -131,7 +146,7 @@ node('Go-Windows-AWS') {
             timeout(time: 30, unit: 'MINUTES') {
               //def notes = "\"${sh(returnStdout: true, script: "git log --pretty=format:'%s' -1")}\""
               dir('ufsa-windows') {
-                bat 'code-push-standalone release-react ${CODEPUSH_APPLICATION_NAME} ${PLATFORM_MODE} -d ${DEPLOYMENT_MODE} --targetBinaryVersion ${CODEPUSH_TARGET_VERSION} --mandatory --clear-cache'
+                bat "code-push-standalone release-react ${CODEPUSH_APPLICATION_NAME} ${PLATFORM_MODE} -d ${DEPLOYMENT_MODE} --targetBinaryVersion ${CODEPUSH_TARGET_VERSION} --mandatory --clear-cache"
               }
             }
         }

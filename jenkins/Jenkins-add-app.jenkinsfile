@@ -75,7 +75,7 @@ node('Go-Windows-AWS') {
         
         stage('Add new app') {
             timeout(time: 30, unit: 'MINUTES') {
-              bat 'code-push-standalone app add ${CODEPUSH_APPLICATION_NAME}'
+              bat "code-push-standalone app add ${CODEPUSH_APPLICATION_NAME}"
             }
         }
 }
