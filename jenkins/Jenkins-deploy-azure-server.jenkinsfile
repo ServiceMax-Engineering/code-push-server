@@ -1,45 +1,16 @@
-/*
-    1. To execute this job, first we need to execute Jenkins-register Job. This will give access key and paste it in terminal or command line. Please
-    save this access key in Jenkins env variable.
-    2. Once above step is done then only we have to run this job.
-    3. Once this job is done then it will generate Staging and Production Deployment keys. Please save them in Jenkins' Env variable.
-*/
-
-
-properties([
-  parameters(
-    [booleanParam(
-      name: 'PRODUCTION_INSTANCE',
-      defaultValue: false,
-      description: 'Register or Autheticate Jenkin Job with Dev Instance or Production Instance and get the access key'
-    ),
-    string(
-      name: "CODEPUSH_APPLICATION_NAME",
-      defaultValue: "",
-      description: "Codepush new app name MyApp-iOS or MyApp-Android or MyApp-Windows"
-    )]
-  )
-])
-
-
-def SERVER_URL = 'https://codepush-dev2.azurewebsites.net'
-def CODEPUSH_APPLICATION_NAME = "";
-try {
-  if (env.PRODUCTION_INSTANCE != null && env.PRODUCTION_INSTANCE.toBoolean()) {
-    // Use Production Server Url here
-    SERVER_URL = 'https://codepush-dev2.azurewebsites.net'
-  }
-
-  if (env.CODEPUSH_APPLICATION_NAME) {
-    CODEPUSH_APPLICATION_NAME = env.CODEPUSH_APPLICATION_NAME;
-  }
-
-} catch (all) {
-  // Mode hasn't been provided, will fall back to 'debug'
-  // This might happen on first build of a PR or if you blank out the MDOE
-}
 
 node('Go-Windows-AWS') {
+
+        environment {
+          AZURE_CLIENT_ID = credentials('AZURE_CLIENT_ID') // Store client ID in Jenkins credentials
+          AZURE_CLIENT_SECRET = credentials('AZURE_CLIENT_SECRET') // Store client secret
+          AZURE_TENANT_ID = credentials('AZURE_TENANT_ID') // Store tenant ID
+          AZURE_SUBSCRIPTION_ID = '<your-subscription-id>'
+          RESOURCE_GROUP = '<your-resource-group>'
+          APP_NAME = '<your-app-name>'
+          REGION = '<your-region>'
+          RUNTIME = '<runtime>' // e.g., "DOTNETCORE|7.0"
+        }
 
         stage('Clean Directory') {
             timeout(time: 30, unit: 'MINUTES') {
@@ -77,17 +48,55 @@ node('Go-Windows-AWS') {
             }
         }
 
-        // stage('Login to ServieceMax app center') {
-        //     timeout(time: 30, unit: 'MINUTES') {
-        //       dir('code-push-server/cli') {
-        //             bat 'code-push-standalone login --accessKey <accessKey>'
-        //       }
-        //     }
-        // }
+        stage('Install Dependencies for API or Server') {
+            timeout(time: 30, unit: 'MINUTES') {
+               try {
+                  dir('code-push-server/api') {
+                    bat 'npm install'
+                    bat 'npm run build'
+                  }
+              } catch(exception) {
+                  echo "Install Dependencies for API or Server failed: ${exception}"
+              }
+            }
+        }
+
+        stage('Install Azure CLI') {
+            timeout(time: 90, unit: 'MINUTES') {
+              try {
+                dir('code-push-server/api') {
+                    bat """
+                        @echo off
+                        az --version
+                        IF %ERRORLEVEL% EQU 0 (
+                            echo Azure CLI is already installed.
+                            EXIT /B 0
+                        )
+                        powershell -Command "Invoke-WebRequest -Uri https://aka.ms/installazurecliwindows -OutFile AzureCLI.msi"
+                        msiexec /i AzureCLI.msi /quiet /norestart
+                        del AzureCLI.msi
+                        az --version
+                    """
+                }
+              } catch (exception) {
+                  echo "Install Azure CLI failed: ${exception}"
+              }
+            }
+        }
         
         stage('Deploy to Azure App Service') {
             timeout(time: 30, unit: 'MINUTES') {
-              
+              try {
+                dir('code-push-server/api') {
+                    bat """
+                      az login --service-principal --username %AZURE_CLIENT_ID% --password %AZURE_CLIENT_SECRET% --tenant %AZURE_TENANT_ID%
+                      az account set --subscription %AZURE_SUBSCRIPTION_ID%
+                      az webapp up --name %APP_NAME% --resource-group %RESOURCE_GROUP% --location %REGION% --runtime "%RUNTIME%"
+                    """
+                }
+              } catch (exception) {
+                  echo "Deploy to Azure App Service failed: ${exception}"
+              }
             }
         }
 }
