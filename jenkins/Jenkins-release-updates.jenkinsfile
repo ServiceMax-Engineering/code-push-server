@@ -13,6 +13,7 @@ properties([
       defaultValue: true,
       description: 'Register or Autheticate Jenkin Job with Dev Instance or Production Instance and get the access key'
     ),
+    file(name: 'UPLOAD_BUNDLED_FOLDER', description: 'Upload a bundled zip folder'),
     choice(
       choices: ['ServiceMaxGo-Windows', 'ServiceMaxGo-iOS', 'ServiceMaxGo-Android'].join('\n'),
       description: 'Select Code Push registered Application Name',
@@ -68,7 +69,7 @@ try {
   // This might happen on first build of a PR or if you blank out the MDOE
 }
 
-node('AWS_MFL_Node') {
+node('Go-Windows-AWS') {
 
     try {
 
@@ -82,6 +83,12 @@ node('AWS_MFL_Node') {
         
         if(!CODEPUSH_TARGET_VERSION || CODEPUSH_TARGET_VERSION == '') {
             throw new Exception("Target version is needed")
+        }
+
+        echo "File uploaded: ${params.UPLOAD_BUNDLED_FOLDER}"
+        
+        if (params.UPLOAD_BUNDLED_FOLDER == null || params.UPLOAD_BUNDLED_FOLDER == '') {
+            throw new Exception("No file selected. Please upload a valid file to proceed.")
         }
         
         if(!DEPLOYMENT_MODE || DEPLOYMENT_MODE == '') {
@@ -140,6 +147,22 @@ node('AWS_MFL_Node') {
         //       }
         //     }
         // }
+
+        stage('Extracting Bundled Zip to Work Space') {
+            timeout(time: 30, unit: 'MINUTES') {
+              
+              try {
+                    def uploadedFile = params.UPLOAD_BUNDLED_FOLDER
+                    def workspaceDir = "${env.WORKSPACE}/${BUNDLE_UPLOAD_PATH}"
+                    sh """
+                        unzip -o '${uploadedFile}' -d '${workspaceDir}'
+                    """
+              } catch (exception) {
+                  echo "Releasing updates failed: ${exception}"
+                  error "Code push release-react failed: ${exception}"
+              }
+            }
+        }
 
         stage('Releasing Updates') {
             timeout(time: 30, unit: 'MINUTES') {
