@@ -2,7 +2,7 @@
 // Licensed under the MIT License.
 
 param project_suffix string
-param az_location string = 'eastus'
+param az_location string = 'eastus2'
 param github_client_id string
 @secure()
 param github_client_secret string
@@ -25,8 +25,8 @@ resource servicePlan 'Microsoft.Web/serverfarms@2022-03-01' = {
     reserved: true
   }
   sku: {
-    name: 'S1'
-    tier: 'Standard'
+    name: 'B1'
+    tier: 'Basic'
   }
 }
 

@@ -10,19 +10,14 @@ properties([
   parameters(
     [booleanParam(
       name: 'PRODUCTION_INSTANCE',
-      defaultValue: false,
+      defaultValue: true,
       description: 'Register or Autheticate Jenkin Job with Dev Instance or Production Instance and get the access key'
     ),
-    string(
-      name: "CODEPUSH_APPLICATION_NAME",
-      defaultValue: "",
-      description: "Codepush new app name MyApp-iOS or MyApp-Android or MyApp-Windows"
+    choice(
+      choices: ['ServiceMaxGo-Windows', 'ServiceMaxGo-iOS', 'ServiceMaxGo-Android'].join('\n'),
+      description: 'Select Code Push registered Application Name',
+      name: 'CODEPUSH_APPLICATION_NAME'
     ),
-    string(
-      name: "RELEASE_BRANCH_NAME",
-      defaultValue: "",
-      description: "ufsa-windows relese branch name(e.g release-11.0)"
-    ), 
     string(
       name: "CODEPUSH_TARGET_VERSION",
       defaultValue: "",
@@ -32,10 +27,6 @@ properties([
       choices: ['Staging', 'Production'].join('\n'),
       description: 'Select \'Staging\' for ServiceMax AppCenter Dev testing.\nSelect \'Production\' for ServiceMax AppCenter  Production',
       name: 'DEPLOYMENT_MODE'
-    ), choice(
-      choices: ['iOS', 'Android', 'Windows'].join('\n'),
-      description: 'Select the platform to release the code push updates',
-      name: 'PLATFORM_MODE'
     )]
   )
 ])
@@ -44,29 +35,28 @@ properties([
 def SERVER_URL = 'https://codepush-dev2.azurewebsites.net'
 def CODEPUSH_APPLICATION_NAME = "";
 def DEPLOYMENT_MODE = ""
-def PLATFORM_MODE = ""
 def CODEPUSH_TARGET_VERSION = ""
-def RELEASE_BRANCH_NAME = ""
+def BUNDLE_UPLOAD_PATH = ""
 try {
   if (env.PRODUCTION_INSTANCE != null && env.PRODUCTION_INSTANCE.toBoolean()) {
     // Use Production Server Url here
     SERVER_URL = 'https://codepush-dev2.azurewebsites.net'
   }
 
-  if (env.RELEASE_BRANCH_NAME) {
-    RELEASE_BRANCH_NAME = env.RELEASE_BRANCH_NAME;
-  }
-
   if (env.CODEPUSH_APPLICATION_NAME) {
     CODEPUSH_APPLICATION_NAME = env.CODEPUSH_APPLICATION_NAME
   }
 
-  if (env.DEPLOYMENT_MODE) {
-    DEPLOYMENT_MODE = env.DEPLOYMENT_MODE;
+  if (CODEPUSH_APPLICATION_NAME == "ServiceMaxGo-Windows") {
+    BUNDLE_UPLOAD_PATH = "Bundle-Windows"
+  } else if (CODEPUSH_APPLICATION_NAME == "ServiceMaxGo-iOS") {
+    BUNDLE_UPLOAD_PATH = "Bundle-iOS"
+  } else if (CODEPUSH_APPLICATION_NAME == "ServiceMaxGo-Android") {
+    BUNDLE_UPLOAD_PATH = "Bundle-Android"
   }
 
-  if (env.PLATFORM_MODE) {
-    PLATFORM_MODE = env.PLATFORM_MODE;
+  if (env.DEPLOYMENT_MODE) {
+    DEPLOYMENT_MODE = env.DEPLOYMENT_MODE;
   }
 
   if (env.CODEPUSH_TARGET_VERSION) {
@@ -89,9 +79,6 @@ node('AWS_MFL_Node') {
 
         currentBuild.displayName = "${version}"
         
-        if (!RELEASE_BRANCH_NAME.startsWith("release-")) {
-            throw new Exception("Invalid branch name. The branch name should start with release-")
-        }
         
         if(!CODEPUSH_TARGET_VERSION || CODEPUSH_TARGET_VERSION == '') {
             throw new Exception("Target version is needed")
@@ -105,39 +92,10 @@ node('AWS_MFL_Node') {
             throw new Exception("Code Push Application name is needed")
         }
         
-        if(!PLATFORM_MODE || PLATFORM_MODE == '') {
-            throw new Exception("Platform is needed is needed")
+        if(!BUNDLE_UPLOAD_PATH || BUNDLE_UPLOAD_PATH == '') {
+            throw new Exception("Bundle upload path is needed is needed")
         }
-        
-        def pattern = "(^(1|[1-9]\\d*)\\.?(\\d+\\.)?(\\*|\\d+)\$)"
-        
-        if(CODEPUSH_TARGET_VERSION == ''){
-            throw new Exception("Codepush Target version is not specified")
-        }
-        if(!CODEPUSH_TARGET_VERSION.matches(pattern)){
-            throw new Exception("Invalid Codepush Target Version")
-        }
-
-        stage('Checkout') {
-            timeout(time: 30, unit: 'MINUTES') {
-                // checkout scm
-                bat """
-                     git clone https://github.com/ServiceMax-Engineering/ufsa-windows.git
-                     cd ufsa-windows
-                     git fetch --all
-                     git checkout ${RELEASE_BRANCH_NAME}
-                     git submodule update --init --recursive
-                """
-            }
-        }
-
-        stage('Install Dependencies') {
-            timeout(time: 300, unit: 'MINUTES') {
-                dir('ufsa-windows') {
-                    bat 'npx npm@6.14.17 install'
-                }
-            }
-        }
+                
 
         stage('Code Push Clean Directory') {
             timeout(time: 30, unit: 'MINUTES') {
@@ -188,9 +146,11 @@ node('AWS_MFL_Node') {
               //def notes = "\"${sh(returnStdout: true, script: "git log --pretty=format:'%s' -1")}\""
               
               try {
-                  dir('ufsa-windows') {
-                    bat "code-push-standalone release-react ${CODEPUSH_APPLICATION_NAME} ${PLATFORM_MODE} -d ${DEPLOYMENT_MODE} --targetBinaryVersion ${CODEPUSH_TARGET_VERSION} --mandatory --disable-duplicate-release-error --clear-cache"
-                  }
+                  // dir('ufsa-windows') {
+                  //   //bat "code-push-standalone release-react ${CODEPUSH_APPLICATION_NAME} ${PLATFORM_MODE} -d ${DEPLOYMENT_MODE} --targetBinaryVersion ${CODEPUSH_TARGET_VERSION} --mandatory --disable-duplicate-release-error --clear-cache"
+                  // }
+                  bat "code-push-standalone release ${CODEPUSH_APPLICATION_NAME} ${WORKSPACE}/${BUNDLE_UPLOAD_PATH} ${CODEPUSH_TARGET_VERSION} -d ${DEPLOYMENT_MODE} -mandatory --noDuplicateReleaseError"
+
               } catch (exception) {
                   echo "Releasing updates failed: ${exception}"
                   error "Code push release-react failed: ${exception}"
