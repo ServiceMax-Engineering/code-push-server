@@ -1,5 +1,5 @@
 
-node('Go-Windows-AWS') {
+node('AWS_MFL_Node') {
 
         environment {
           AZURE_CLIENT_ID = credentials('AZURE_CLIENT_ID') // Store client ID in Jenkins credentials
