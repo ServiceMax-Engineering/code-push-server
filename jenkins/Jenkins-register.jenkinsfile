@@ -23,7 +23,7 @@ try {
   // This might happen on first build of a PR or if you blank out the MDOE
 }
 
-node('Go-Windows-AWS') {
+node('AWS_MFL_Node') {
 
          stage('Clean Directory') {
             timeout(time: 30, unit: 'MINUTES') {
