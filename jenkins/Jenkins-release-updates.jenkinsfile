@@ -38,6 +38,7 @@ def CODEPUSH_APPLICATION_NAME = "";
 def DEPLOYMENT_MODE = ""
 def CODEPUSH_TARGET_VERSION = ""
 def BUNDLE_UPLOAD_PATH = ""
+def UPLOAD_BUNDLED_FOLDER_PATH = ""
 try {
   if (env.PRODUCTION_INSTANCE != null && env.PRODUCTION_INSTANCE.toBoolean()) {
     // Use Production Server Url here
@@ -63,6 +64,10 @@ try {
   if (env.CODEPUSH_TARGET_VERSION) {
     CODEPUSH_TARGET_VERSION = env.CODEPUSH_TARGET_VERSION
   }
+  
+  if (env.UPLOAD_BUNDLED_FOLDER) {
+    UPLOAD_BUNDLED_FOLDER_PATH = env.UPLOAD_BUNDLED_FOLDER
+  }
 
 } catch (all) {
   // Mode hasn't been provided, will fall back to 'debug'
@@ -85,9 +90,9 @@ node('Go-Windows-AWS') {
             throw new Exception("Target version is needed")
         }
 
-        echo "File uploaded: ${params.UPLOAD_BUNDLED_FOLDER}"
+        echo "File uploaded: ${UPLOAD_BUNDLED_FOLDER_PATH}"
         
-        if (params.UPLOAD_BUNDLED_FOLDER == null || params.UPLOAD_BUNDLED_FOLDER == '') {
+        if (UPLOAD_BUNDLED_FOLDER_PATH == null || UPLOAD_BUNDLED_FOLDER_PATH == '') {
             throw new Exception("No file selected. Please upload a valid file to proceed.")
         }
         
@@ -152,11 +157,31 @@ node('Go-Windows-AWS') {
             timeout(time: 30, unit: 'MINUTES') {
               
               try {
-                    def uploadedFile = params.UPLOAD_BUNDLED_FOLDER
+                    def uploadedFile = "${env.WORKSPACE}/${UPLOAD_BUNDLED_FOLDER_PATH}"
                     def workspaceDir = "${env.WORKSPACE}/${BUNDLE_UPLOAD_PATH}"
-                    sh """
-                        unzip -o '${uploadedFile}' -d '${workspaceDir}'
+                    
+                    def zipFile = "${env.WORKSPACE}\\${UPLOAD_BUNDLED_FOLDER_PATH}"
+
+                    // Verify if the uploaded file exists
+                    bat "dir \"${env.WORKSPACE}\""
+
+                    if (!fileExists(zipFile) || UPLOAD_BUNDLED_FOLDER_PATH == '') {
+                        error "No valid file uploaded. Please upload a valid ZIP file."
+                    }
+
+                    echo "File uploaded: ${UPLOAD_BUNDLED_FOLDER_PATH}"
+
+                    // Extract the file using PowerShell (since Windows doesn't have `unzip` natively)
+                    bat """
+                        powershell -Command "Expand-Archive -Path '${zipFile}' -DestinationPath '${env.WORKSPACE}\\${BUNDLE_UPLOAD_PATH}' -Force"
                     """
+
+                    // List the extracted files
+                    bat "dir \"${env.WORKSPACE}\\${BUNDLE_UPLOAD_PATH}\""
+                    
+                    // sh """
+                    //     unzip -o '${uploadedFile}' -d '${workspaceDir}'
+                    // """
               } catch (exception) {
                   echo "Releasing updates failed: ${exception}"
                   error "Code push release-react failed: ${exception}"
@@ -169,9 +194,7 @@ node('Go-Windows-AWS') {
               //def notes = "\"${sh(returnStdout: true, script: "git log --pretty=format:'%s' -1")}\""
               
               try {
-                  // dir('ufsa-windows') {
-                  //   //bat "code-push-standalone release-react ${CODEPUSH_APPLICATION_NAME} ${PLATFORM_MODE} -d ${DEPLOYMENT_MODE} --targetBinaryVersion ${CODEPUSH_TARGET_VERSION} --mandatory --disable-duplicate-release-error --clear-cache"
-                  // }
+                  
                   bat "code-push-standalone release ${CODEPUSH_APPLICATION_NAME} ${WORKSPACE}/${BUNDLE_UPLOAD_PATH} ${CODEPUSH_TARGET_VERSION} -d ${DEPLOYMENT_MODE} -mandatory --noDuplicateReleaseError"
 
               } catch (exception) {
