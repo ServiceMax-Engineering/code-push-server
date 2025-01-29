@@ -13,6 +13,7 @@ properties([
       defaultValue: true,
       description: 'Register or Autheticate Jenkin Job with Dev Instance or Production Instance and get the access key'
     ),
+    file(name: "file", description: "upload"),
     choice(
       choices: ['ServiceMaxGo-Windows', 'ServiceMaxGo-iOS', 'ServiceMaxGo-Android'].join('\n'),
       description: 'Select Code Push registered Application Name',
