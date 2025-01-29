@@ -13,7 +13,6 @@ properties([
       defaultValue: true,
       description: 'Register or Autheticate Jenkin Job with Dev Instance or Production Instance and get the access key'
     ),
-    File(name: 'Artifactname', description: 'Upload file to push to Codepush server'),
     choice(
       choices: ['ServiceMaxGo-Windows', 'ServiceMaxGo-iOS', 'ServiceMaxGo-Android'].join('\n'),
       description: 'Select Code Push registered Application Name',
