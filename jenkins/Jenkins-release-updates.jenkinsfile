@@ -13,7 +13,6 @@ properties([
       defaultValue: true,
       description: 'Register or Autheticate Jenkin Job with Dev Instance or Production Instance and get the access key'
     ),
-    file(name: 'UPLOAD_BUNDLED_FOLDER', description: 'Upload a bundled zip folder'),
     choice(
       choices: ['ServiceMaxGo-Windows', 'ServiceMaxGo-iOS', 'ServiceMaxGo-Android'].join('\n'),
       description: 'Select Code Push registered Application Name',
@@ -22,12 +21,32 @@ properties([
     string(
       name: "CODEPUSH_TARGET_VERSION",
       defaultValue: "",
-      description: "Codepush Target binary version(e.g 7.0)"
+      description: "Codepush Target binary version(e.g 7.0.0)"
+    ), 
+    string(
+      name: "CODEPUSH_DESCRIPTION",
+      defaultValue: "",
+      description: "Enter the description for the codepush release"
     ), 
     choice(
       choices: ['Staging', 'Production'].join('\n'),
       description: 'Select \'Staging\' for ServiceMax AppCenter Dev testing.\nSelect \'Production\' for ServiceMax AppCenter  Production',
-      name: 'DEPLOYMENT_MODE'
+      name: 'CODEPUSH_DEPLOYMENT_MODE'
+    ), 
+    string(
+      name: "RELEASE_BRANCH_NAME",
+      defaultValue: "",
+      description: "ufsa-windows or ufsa relese branch name(e.g release-11.0)"
+    ), 
+    string(
+      name: "ARTIFACT_BUILD_VERSION",
+      defaultValue: "",
+      description: "Enter the valid build version from which we need to copy the artifact"
+    ), 
+    choice(
+      choices: ['ReleaseOps/ServiceMax-Engineering/ufsa-windows', 'ReleaseOps/ServiceMax-Engineering/ufsa-windows'].join('\n'),
+      description: 'Select the Project Name',
+      name: 'PROJECT_NAME'
     )]
   )
 ])
@@ -35,38 +54,49 @@ properties([
 
 def SERVER_URL = 'https://codepush-dev2.azurewebsites.net'
 def CODEPUSH_APPLICATION_NAME = "";
-def DEPLOYMENT_MODE = ""
+def CODEPUSH_DEPLOYMENT_MODE = ""
+def CODEPUSH_DESCRIPTION = ""
+def PLATFORM_MODE = ""
 def CODEPUSH_TARGET_VERSION = ""
-def BUNDLE_UPLOAD_PATH = ""
-def UPLOAD_BUNDLED_FOLDER_PATH = ""
+def RELEASE_BRANCH_NAME = ""
+def ARTIFACT_BUILD_VERSION = ""
+def PROJECT_NAME = ""
 try {
   if (env.PRODUCTION_INSTANCE != null && env.PRODUCTION_INSTANCE.toBoolean()) {
     // Use Production Server Url here
     SERVER_URL = 'https://codepush-dev2.azurewebsites.net'
   }
 
+  if (env.RELEASE_BRANCH_NAME) {
+    RELEASE_BRANCH_NAME = env.RELEASE_BRANCH_NAME;
+  }
+
   if (env.CODEPUSH_APPLICATION_NAME) {
     CODEPUSH_APPLICATION_NAME = env.CODEPUSH_APPLICATION_NAME
   }
 
-  if (CODEPUSH_APPLICATION_NAME == "ServiceMaxGo-Windows") {
-    BUNDLE_UPLOAD_PATH = "Bundle-Windows"
-  } else if (CODEPUSH_APPLICATION_NAME == "ServiceMaxGo-iOS") {
-    BUNDLE_UPLOAD_PATH = "Bundle-iOS"
-  } else if (CODEPUSH_APPLICATION_NAME == "ServiceMaxGo-Android") {
-    BUNDLE_UPLOAD_PATH = "Bundle-Android"
+  if (env.CODEPUSH_DEPLOYMENT_MODE) {
+    CODEPUSH_DEPLOYMENT_MODE = env.CODEPUSH_DEPLOYMENT_MODE;
   }
 
-  if (env.DEPLOYMENT_MODE) {
-    DEPLOYMENT_MODE = env.DEPLOYMENT_MODE;
+  if (env.PLATFORM_MODE) {
+    PLATFORM_MODE = env.PLATFORM_MODE;
   }
 
   if (env.CODEPUSH_TARGET_VERSION) {
     CODEPUSH_TARGET_VERSION = env.CODEPUSH_TARGET_VERSION
   }
-  
-  if (env.UPLOAD_BUNDLED_FOLDER) {
-    UPLOAD_BUNDLED_FOLDER_PATH = env.UPLOAD_BUNDLED_FOLDER
+
+  if (env.ARTIFACT_BUILD_VERSION) {
+    ARTIFACT_BUILD_VERSION = env.ARTIFACT_BUILD_VERSION
+  }
+
+  if (env.PROJECT_NAME) {
+    PROJECT_NAME = env.PROJECT_NAME
+  }
+
+  if (env.CODEPUSH_DESCRIPTION) {
+    CODEPUSH_DESCRIPTION = env.CODEPUSH_DESCRIPTION
   }
 
 } catch (all) {
@@ -74,7 +104,7 @@ try {
   // This might happen on first build of a PR or if you blank out the MDOE
 }
 
-node('Go-Windows-AWS') {
+node('AWS_MFL_Node') {
 
     try {
 
@@ -85,15 +115,16 @@ node('Go-Windows-AWS') {
 
         currentBuild.displayName = "${version}"
         
+        // if (!RELEASE_BRANCH_NAME.startsWith("release-")) {
+        //     throw new Exception("Invalid branch name. The branch name should start with release-")
+        // }
+
+        if(!RELEASE_BRANCH_NAME || RELEASE_BRANCH_NAME == '') {
+            throw new Exception("Branch name is needed")
+        }
         
         if(!CODEPUSH_TARGET_VERSION || CODEPUSH_TARGET_VERSION == '') {
             throw new Exception("Target version is needed")
-        }
-
-        echo "File uploaded: ${UPLOAD_BUNDLED_FOLDER_PATH}"
-        
-        if (UPLOAD_BUNDLED_FOLDER_PATH == null || UPLOAD_BUNDLED_FOLDER_PATH == '') {
-            throw new Exception("No file selected. Please upload a valid file to proceed.")
         }
         
         if(!DEPLOYMENT_MODE || DEPLOYMENT_MODE == '') {
@@ -104,10 +135,60 @@ node('Go-Windows-AWS') {
             throw new Exception("Code Push Application name is needed")
         }
         
-        if(!BUNDLE_UPLOAD_PATH || BUNDLE_UPLOAD_PATH == '') {
-            throw new Exception("Bundle upload path is needed is needed")
+        if(!PLATFORM_MODE || PLATFORM_MODE == '') {
+            throw new Exception("Platform is needed is needed")
         }
+        
+        def pattern = "(^(1|[1-9]\\d*)\\.?(\\d+\\.)?(\\*|\\d+)\$)"
+        
+        if(CODEPUSH_TARGET_VERSION == ''){
+            throw new Exception("Codepush Target version is not specified")
+        }
+        if(!CODEPUSH_TARGET_VERSION.matches(pattern)){
+            throw new Exception("Invalid Codepush Target Version")
+        }
+
+        if(ARTIFACT_BUILD_VERSION == ''){
+            throw new Exception("Artifact Build version is not specified")
+        }
+
+        if(PROJECT_NAME == ''){
+            throw new Exception("Project Name is not specified")
+        }
+
+        if(CODEPUSH_DESCRIPTION == ''){
+            throw new Exception("Description is not specified")
+        }
+        
+        stage('Copy Artifacts') {
+            timeout(time: 30, unit: 'MINUTES') {
                 
+                try {
+                    
+                   step([$class: 'CopyArtifact',
+                          // projectName: 'ReleaseOps/ServiceMax-Engineering/ufsa-windows/codepushserver-poc',
+                          projectName: "${PROJECT_NAME}/${RELEASE_BRANCH_NAME}",
+                          selector: [$class: 'StatusBuildSelector', stable: true],
+                          target: 'retrieved_artifacts/'
+                    ])
+        
+                    sh 'ls -l retrieved_artifacts'
+                    
+                } catch (exception) {
+                    
+                    sh 'ls -l retrieved_artifacts'
+
+                    echo "Copy Artifacts failed: ${exception}"
+                    
+                    
+                    /*
+                    powershell """
+                        Expand-Archive -Path 'retrieved_artifacts\\Bundle-Windows.zip' -DestinationPath 'retrieved_artifacts\\CodePush-Windows\\' -Force
+                    """
+                    */
+                }
+            }
+        }
 
         stage('Code Push Clean Directory') {
             timeout(time: 30, unit: 'MINUTES') {
@@ -153,53 +234,32 @@ node('Go-Windows-AWS') {
         //     }
         // }
 
-        stage('Extracting Bundled Zip to Work Space') {
+        stage('Releasing Updates') {
             timeout(time: 30, unit: 'MINUTES') {
-              
               try {
-                    def uploadedFile = "${env.WORKSPACE}/${UPLOAD_BUNDLED_FOLDER_PATH}"
-                    def workspaceDir = "${env.WORKSPACE}/${BUNDLE_UPLOAD_PATH}"
                     
-                    def zipFile = "${env.WORKSPACE}\\${UPLOAD_BUNDLED_FOLDER_PATH}"
-
-                    // Verify if the uploaded file exists
-                    bat "dir \"${env.WORKSPACE}\""
-
-                    if (!fileExists(zipFile) || UPLOAD_BUNDLED_FOLDER_PATH == '') {
-                        error "No valid file uploaded. Please upload a valid ZIP file."
-                    }
-
-                    echo "File uploaded: ${UPLOAD_BUNDLED_FOLDER_PATH}"
-
-                    // Extract the file using PowerShell (since Windows doesn't have `unzip` natively)
-                    bat """
-                        powershell -Command "Expand-Archive -Path '${zipFile}' -DestinationPath '${env.WORKSPACE}\\${BUNDLE_UPLOAD_PATH}' -Force"
+                    def codePushCommand = """
+                    code-push-standalone release ${CODEPUSH_APPLICATION_NAME} ${WORKSPACE}/retrieved_artifacts/Bundle ${CODEPUSH_TARGET_VERSION} ^
+                        --deploymentName ${CODEPUSH_DEPLOYMENT_MODE} ^
+                        --description "${CODEPUSH_DESCRIPTION}" ^
+                        --mandatory ^
+                        --noDuplicateReleaseError
                     """
-
-                    // List the extracted files
-                    bat "dir \"${env.WORKSPACE}\\${BUNDLE_UPLOAD_PATH}\""
+                    bat codePushCommand
                     
-                    // sh """
-                    //     unzip -o '${uploadedFile}' -d '${workspaceDir}'
-                    // """
               } catch (exception) {
-                  echo "Releasing updates failed: ${exception}"
-                  error "Code push release-react failed: ${exception}"
+                  error "Build failed: ${exception}"
               }
             }
         }
 
-        stage('Releasing Updates') {
+        stage('Listing the updates') {
             timeout(time: 30, unit: 'MINUTES') {
-              //def notes = "\"${sh(returnStdout: true, script: "git log --pretty=format:'%s' -1")}\""
-              
               try {
-                  
-                  bat "code-push-standalone release ${CODEPUSH_APPLICATION_NAME} ${WORKSPACE}/${BUNDLE_UPLOAD_PATH} ${CODEPUSH_TARGET_VERSION} -d ${DEPLOYMENT_MODE} -mandatory --noDuplicateReleaseError"
-
+                    def output = bat(script: "code-push-standalone deployment history ${CODEPUSH_APPLICATION_NAME} ${CODEPUSH_DEPLOYMENT_MODE}", returnStdout: true).trim()
+                    echo "CodePush Deployment History:\n${output}"
               } catch (exception) {
-                  echo "Releasing updates failed: ${exception}"
-                  error "Code push release-react failed: ${exception}"
+                  error "Listing the updates failed: ${exception}"
               }
             }
         }
