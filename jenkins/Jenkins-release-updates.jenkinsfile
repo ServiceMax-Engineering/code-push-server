@@ -21,7 +21,7 @@ properties([
     string(
       name: "CODEPUSH_TARGET_VERSION",
       defaultValue: "",
-      description: "Codepush Target binary version(e.g 7.0)"
+      description: "Codepush Target binary version(e.g 7.0.0)"
     ), 
     string(
       name: "CODEPUSH_DESCRIPTION",
@@ -36,18 +36,13 @@ properties([
     string(
       name: "RELEASE_BRANCH_NAME",
       defaultValue: "",
-      description: "ufsa-windows relese branch name(e.g release-11.0.0)"
+      description: "ufsa-windows or ufsa relese branch name(e.g release-11.0)"
     ), 
     string(
       name: "ARTIFACT_BUILD_VERSION",
       defaultValue: "",
       description: "Enter the valid build version from which we need to copy the artifact"
-    ),
-    string(
-      name: "RELEASE_BRANCH_NAME",
-      defaultValue: "",
-      description: "ufsa-windows relese branch name(e.g release-11.0)"
-    ),  
+    ), 
     choice(
       choices: ['ReleaseOps/ServiceMax-Engineering/ufsa-windows', 'ReleaseOps/ServiceMax-Engineering/ufsa-windows'].join('\n'),
       description: 'Select the Project Name',
