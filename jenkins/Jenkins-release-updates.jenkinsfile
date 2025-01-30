@@ -56,7 +56,6 @@ def SERVER_URL = 'https://codepush-dev2.azurewebsites.net'
 def CODEPUSH_APPLICATION_NAME = "";
 def CODEPUSH_DEPLOYMENT_MODE = ""
 def CODEPUSH_DESCRIPTION = ""
-def PLATFORM_MODE = ""
 def CODEPUSH_TARGET_VERSION = ""
 def RELEASE_BRANCH_NAME = ""
 def ARTIFACT_BUILD_VERSION = ""
@@ -77,10 +76,6 @@ try {
 
   if (env.CODEPUSH_DEPLOYMENT_MODE) {
     CODEPUSH_DEPLOYMENT_MODE = env.CODEPUSH_DEPLOYMENT_MODE;
-  }
-
-  if (env.PLATFORM_MODE) {
-    PLATFORM_MODE = env.PLATFORM_MODE;
   }
 
   if (env.CODEPUSH_TARGET_VERSION) {
@@ -127,16 +122,12 @@ node('AWS_MFL_Node') {
             throw new Exception("Target version is needed")
         }
         
-        if(!DEPLOYMENT_MODE || DEPLOYMENT_MODE == '') {
+        if(!CODEPUSH_DEPLOYMENT_MODE || CODEPUSH_DEPLOYMENT_MODE == '') {
             throw new Exception("Deploymenet Mode is needed")
         }
         
         if(!CODEPUSH_APPLICATION_NAME || CODEPUSH_APPLICATION_NAME == '') {
             throw new Exception("Code Push Application name is needed")
-        }
-        
-        if(!PLATFORM_MODE || PLATFORM_MODE == '') {
-            throw new Exception("Platform is needed is needed")
         }
         
         def pattern = "(^(1|[1-9]\\d*)\\.?(\\d+\\.)?(\\*|\\d+)\$)"
@@ -256,8 +247,9 @@ node('AWS_MFL_Node') {
         stage('Listing the updates') {
             timeout(time: 30, unit: 'MINUTES') {
               try {
-                    def output = bat(script: "code-push-standalone deployment history ${CODEPUSH_APPLICATION_NAME} ${CODEPUSH_DEPLOYMENT_MODE}", returnStdout: true).trim()
+                    def output = bat(script: "code-push-standalone deployment history ${CODEPUSH_APPLICATION_NAME} ${CODEPUSH_DEPLOYMENT_MODE} --format json", returnStdout: true, encoding: 'UTF-8').trim()
                     echo "CodePush Deployment History:\n${output}"
+
               } catch (exception) {
                   error "Listing the updates failed: ${exception}"
               }
