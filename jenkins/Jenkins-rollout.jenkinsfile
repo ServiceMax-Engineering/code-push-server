@@ -21,25 +21,20 @@ properties([
     string(
       name: "CODEPUSH_TARGET_VERSION",
       defaultValue: "",
-      description: "Codepush Target binary version(e.g 7.0.0)"
-    ), 
-    string(
-      name: "CODEPUSH_DESCRIPTION",
-      defaultValue: "",
-      description: "Enter the description for the codepush release"
+      description: "Codepush Target binary version(e.g 7.0)"
     ), 
     choice(
       choices: ['Staging', 'Production'].join('\n'),
       description: 'Select \'Staging\' for ServiceMax AppCenter Dev testing.\nSelect \'Production\' for ServiceMax AppCenter  Production',
-      name: 'CODEPUSH_DEPLOYMENT_MODE'
+      name: 'DEPLOYMENT_MODE'
     ), 
     string(
       name: "RELEASE_BRANCH_NAME",
       defaultValue: "",
-      description: "ufsa-windows or ufsa relese branch name(e.g release-11.0)"
+      description: "ufsa-windows relese branch name(e.g release-11.0)"
     ), 
     string(
-      name: "ARTIFACT_BUILD_VERSION",
+      name: "BUILD_VERSION",
       defaultValue: "",
       description: "Enter the valid build version from which we need to copy the artifact"
     ), 
@@ -54,11 +49,11 @@ properties([
 
 def SERVER_URL = 'https://codepush-dev2.azurewebsites.net'
 def CODEPUSH_APPLICATION_NAME = "";
-def CODEPUSH_DEPLOYMENT_MODE = ""
-def CODEPUSH_DESCRIPTION = ""
+def DEPLOYMENT_MODE = ""
+def PLATFORM_MODE = ""
 def CODEPUSH_TARGET_VERSION = ""
 def RELEASE_BRANCH_NAME = ""
-def ARTIFACT_BUILD_VERSION = ""
+def BUILD_VERSION = ""
 def PROJECT_NAME = ""
 try {
   if (env.PRODUCTION_INSTANCE != null && env.PRODUCTION_INSTANCE.toBoolean()) {
@@ -74,24 +69,24 @@ try {
     CODEPUSH_APPLICATION_NAME = env.CODEPUSH_APPLICATION_NAME
   }
 
-  if (env.CODEPUSH_DEPLOYMENT_MODE) {
-    CODEPUSH_DEPLOYMENT_MODE = env.CODEPUSH_DEPLOYMENT_MODE;
+  if (env.DEPLOYMENT_MODE) {
+    DEPLOYMENT_MODE = env.DEPLOYMENT_MODE;
+  }
+
+  if (env.PLATFORM_MODE) {
+    PLATFORM_MODE = env.PLATFORM_MODE;
   }
 
   if (env.CODEPUSH_TARGET_VERSION) {
     CODEPUSH_TARGET_VERSION = env.CODEPUSH_TARGET_VERSION
   }
 
-  if (env.ARTIFACT_BUILD_VERSION) {
-    ARTIFACT_BUILD_VERSION = env.ARTIFACT_BUILD_VERSION
+  if (env.BUILD_VERSION) {
+    BUILD_VERSION = env.BUILD_VERSION
   }
 
   if (env.PROJECT_NAME) {
     PROJECT_NAME = env.PROJECT_NAME
-  }
-
-  if (env.CODEPUSH_DESCRIPTION) {
-    CODEPUSH_DESCRIPTION = env.CODEPUSH_DESCRIPTION
   }
 
 } catch (all) {
@@ -118,16 +113,21 @@ node('AWS_MFL_Node') {
             throw new Exception("Branch name is needed")
         }
         
+        /*
         if(!CODEPUSH_TARGET_VERSION || CODEPUSH_TARGET_VERSION == '') {
             throw new Exception("Target version is needed")
         }
         
-        if(!CODEPUSH_DEPLOYMENT_MODE || CODEPUSH_DEPLOYMENT_MODE == '') {
+        if(!DEPLOYMENT_MODE || DEPLOYMENT_MODE == '') {
             throw new Exception("Deploymenet Mode is needed")
         }
         
         if(!CODEPUSH_APPLICATION_NAME || CODEPUSH_APPLICATION_NAME == '') {
             throw new Exception("Code Push Application name is needed")
+        }
+        
+        if(!PLATFORM_MODE || PLATFORM_MODE == '') {
+            throw new Exception("Platform is needed is needed")
         }
         
         def pattern = "(^(1|[1-9]\\d*)\\.?(\\d+\\.)?(\\*|\\d+)\$)"
@@ -139,47 +139,89 @@ node('AWS_MFL_Node') {
             throw new Exception("Invalid Codepush Target Version")
         }
 
-        if(ARTIFACT_BUILD_VERSION == ''){
-            throw new Exception("Artifact Build version is not specified")
+        if(BUILD_VERSION == ''){
+            throw new Exception("Build version is not specified")
         }
 
         if(PROJECT_NAME == ''){
             throw new Exception("Project Name is not specified")
         }
 
-        if(CODEPUSH_DESCRIPTION == ''){
-            throw new Exception("Description is not specified")
-        }
-        
-        stage('Copy Artifacts') {
+        stage('Checkout') {
             timeout(time: 30, unit: 'MINUTES') {
+                // checkout scm
                 
-                try {
-                    
-                   step([$class: 'CopyArtifact',
-                          projectName: "${PROJECT_NAME}/${RELEASE_BRANCH_NAME}",
-                          // selector: [$class: 'StatusBuildSelector', stable: true],
-                          selector: [$class: 'SpecificBuildSelector', buildNumber: "${ARTIFACT_BUILD_VERSION}"],
-                          target: 'retrieved_artifacts/'
-                    ])
+            }
+        }
+        */
         
-                    sh 'ls -l retrieved_artifacts'
-                    
-                } catch (exception) {
-                    
-                    sh 'ls -l retrieved_artifacts'
+        
 
-                    echo "Copy Artifacts failed: ${exception}"
-                    
-                    
-                    /*
-                    powershell """
-                        Expand-Archive -Path 'retrieved_artifacts\\Bundle-Windows.zip' -DestinationPath 'retrieved_artifacts\\CodePush-Windows\\' -Force
-                    """
-                    */
+        stage('Install Dependencies') {
+            timeout(time: 300, unit: 'MINUTES') {
+                dir('ufsa-windows') {
+                    // bat 'npx npm@6.14.17 install'
                 }
             }
         }
+        
+        /*
+        stage('Bundle code') {
+            timeout(time: 30, unit: 'MINUTES') {
+                dir('ufsa-windows') {
+                    try {
+                        bat "mkdir Bundle-Windows"
+                        bat "npx react-native bundle --platform windows --entry-file index.js --bundle-output Bundle-Windows/index.windows.bundle --assets-dest Bundle-Windows --dev false --reset-cache"
+
+                    } catch (exception) {
+                        echo "Bundle code failed: ${exception}"
+                    }
+                }
+            }
+        }
+        */
+        
+        // stage('Archive Bundle Artifacts') {
+        //     timeout(time: 30, unit: 'MINUTES') {
+        //         dir('ufsa-windows') {
+        //             try {
+        //                 bundleArtifactPath = "Bundle-Windows"
+        //                 // archiveArtifacts artifacts: "Bundle-Windows/**/*", fingerprint: true
+        //             } catch (exception) {
+        //                 echo "Archive Bundle Artifacts failed: ${exception}"
+        //             }
+        //         }
+        //     }
+        // }
+        
+        // stage('Copy Artifacts') {
+        //     timeout(time: 30, unit: 'MINUTES') {
+                
+        //         try {
+                    
+        //            step([$class: 'CopyArtifact',
+        //                   // projectName: 'ReleaseOps/ServiceMax-Engineering/ufsa-windows/codepushserver-poc',
+        //                   projectName: "${PROJECT_NAME}/${RELEASE_BRANCH_NAME}",
+        //                   selector: [$class: 'StatusBuildSelector', stable: true],
+        //                   target: 'retrieved_artifacts/'
+        //             ])
+        
+        //             sh 'ls -l retrieved_artifacts'
+                    
+        //         } catch (exception) {
+                    
+        //             sh 'ls -l retrieved_artifacts'
+                    
+        //             sh 'ls -l retrieved_artifacts/Bundle-Windows'
+                    
+        //             /*
+        //             powershell """
+        //                 Expand-Archive -Path 'retrieved_artifacts\\Bundle-Windows.zip' -DestinationPath 'retrieved_artifacts\\CodePush-Windows\\' -Force
+        //             """
+        //             */
+        //         }
+        //     }
+        // }
 
         stage('Code Push Clean Directory') {
             timeout(time: 30, unit: 'MINUTES') {
@@ -226,16 +268,19 @@ node('AWS_MFL_Node') {
         //     }
         // }
 
-        stage('Releasing Updates') {
+        stage('Rolling out Updates') {
             timeout(time: 30, unit: 'MINUTES') {
+              //def notes = "\"${sh(returnStdout: true, script: "git log --pretty=format:'%s' -1")}\""
+              def DESCRIPTION = "title name changed to 21"
+              def DEPLOYMENT_NAME = "Staging"
+              def APP_NAME = "ServiceMaxGo-Windows"
+              def TARGET_VERSION = "12.0.0"
               try {
+                    // bat "code-push-standalone release ServiceMaxGo-Windows ${WORKSPACE}/retrieved_artifacts/Bundle 12.0.0 --deploymentName Staging --description 'title changed to twenty one' --mandatory --noDuplicateReleaseError"
                     
+                    // code-push-standalone rollback ServiceMaxGo-Windows Staging --targetRelease v4
                     def codePushCommand = """
-                    code-push-standalone release ${CODEPUSH_APPLICATION_NAME} ${WORKSPACE}/retrieved_artifacts/Bundle ${CODEPUSH_TARGET_VERSION} ^
-                        --deploymentName ${CODEPUSH_DEPLOYMENT_MODE} ^
-                        --description "${CODEPUSH_DESCRIPTION}" ^
-                        --mandatory ^
-                        --noDuplicateReleaseError
+                    code-push-standalone rollback ServiceMaxGo-Windows Staging 
                     """
                     bat codePushCommand
                     
@@ -247,10 +292,14 @@ node('AWS_MFL_Node') {
 
         stage('Listing the updates') {
             timeout(time: 30, unit: 'MINUTES') {
+              //def notes = "\"${sh(returnStdout: true, script: "git log --pretty=format:'%s' -1")}\""
+              def DESCRIPTION = "title name changed to 21"
+              def DEPLOYMENT_NAME = "Staging"
+              def APP_NAME = "ServiceMaxGo-Windows"
+              def TARGET_VERSION = "12.0.0"
               try {
-                    def output = bat(script: "code-push-standalone deployment history ${CODEPUSH_APPLICATION_NAME} ${CODEPUSH_DEPLOYMENT_MODE} --format json", returnStdout: true, encoding: 'UTF-8').trim()
+                     def output = bat(script: "code-push-standalone deployment history ${CODEPUSH_APPLICATION_NAME} ${CODEPUSH_DEPLOYMENT_MODE} --format json", returnStdout: true, encoding: 'UTF-8').trim()
                     echo "CodePush Deployment History:\n${output}"
-
               } catch (exception) {
                   error "Listing the updates failed: ${exception}"
               }
@@ -259,12 +308,9 @@ node('AWS_MFL_Node') {
 
     } catch (all) {
         // Clean up workspace on build failure
-        step([$class: 'WsCleanup'])
+        //step([$class: 'WsCleanup'])
         error "Build failed: ${all}"
         currentBuild.result = 'FAILURE'
     }
-
-    // Clean up workspace on build failure
-    step([$class: 'WsCleanup'])
 
 }

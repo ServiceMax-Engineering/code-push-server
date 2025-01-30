@@ -51,6 +51,7 @@ node('AWS_MFL_Node') {
             timeout(time: 30, unit: 'MINUTES') {
                try {
                   dir('code-push-server/cli') {
+                    bat 'nvm use 18'
                     bat 'npm install'
                     bat 'npm run build'
                     bat 'npm install -g .'
