@@ -44,7 +44,7 @@ properties([
       description: "Enter the valid build version from which we need to copy the artifact"
     ), 
     choice(
-      choices: ['ReleaseOps/ServiceMax-Engineering/ufsa-windows', 'ReleaseOps/ServiceMax-Engineering/ufsa-windows'].join('\n'),
+      choices: ['ReleaseOps/ServiceMax-Engineering/ufsa-windows', 'ReleaseOps/ServiceMax-Engineering/ufsa'].join('\n'),
       description: 'Select the Project Name',
       name: 'PROJECT_NAME'
     )]
