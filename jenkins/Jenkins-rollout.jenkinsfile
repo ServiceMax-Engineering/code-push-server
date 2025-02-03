@@ -273,14 +273,14 @@ node('AWS_MFL_Node') {
               //def notes = "\"${sh(returnStdout: true, script: "git log --pretty=format:'%s' -1")}\""
               def DESCRIPTION = "title name changed to 21"
               def DEPLOYMENT_NAME = "Staging"
-              def APP_NAME = "ServiceMaxGo-Windows"
-              def TARGET_VERSION = "12.0.0"
+              def APP_NAME = "ServiceMaxGo-iOS"
+              def TARGET_VERSION = "11.1.0"
               try {
                     // bat "code-push-standalone release ServiceMaxGo-Windows ${WORKSPACE}/retrieved_artifacts/Bundle 12.0.0 --deploymentName Staging --description 'title changed to twenty one' --mandatory --noDuplicateReleaseError"
                     
                     // code-push-standalone rollback ServiceMaxGo-Windows Staging --targetRelease v4
                     def codePushCommand = """
-                    code-push-standalone rollback ServiceMaxGo-Windows Staging 
+                    echo y|code-push-standalone rollback ServiceMaxGo-iOS Staging -targetRelease v3
                     """
                     bat codePushCommand
                     

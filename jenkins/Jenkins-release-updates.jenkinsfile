@@ -60,6 +60,8 @@ def CODEPUSH_TARGET_VERSION = ""
 def RELEASE_BRANCH_NAME = ""
 def ARTIFACT_BUILD_VERSION = ""
 def PROJECT_NAME = ""
+def BUNDLE_FOLDER_PATH = ""
+
 try {
   if (env.PRODUCTION_INSTANCE != null && env.PRODUCTION_INSTANCE.toBoolean()) {
     // Use Production Server Url here
@@ -150,6 +152,16 @@ node('AWS_MFL_Node') {
         if(CODEPUSH_DESCRIPTION == ''){
             throw new Exception("Description is not specified")
         }
+
+        if (CODEPUSH_APPLICATION_NAME == 'ServiceMaxGo-Windows') {
+          BUNDLE_FOLDER_PATH = "Bundle-Windows"
+        } else if (CODEPUSH_APPLICATION_NAME == 'ServiceMaxGo-iOS') {
+          BUNDLE_FOLDER_PATH = "Bundle-iOS"
+        } else if (CODEPUSH_APPLICATION_NAME == 'ServiceMaxGo-Android') {
+          BUNDLE_FOLDER_PATH = "Bundle-Android"
+        }
+         
+
         
         stage('Copy Artifacts') {
             timeout(time: 30, unit: 'MINUTES') {
@@ -231,7 +243,7 @@ node('AWS_MFL_Node') {
               try {
                     
                     def codePushCommand = """
-                    code-push-standalone release ${CODEPUSH_APPLICATION_NAME} ${WORKSPACE}/retrieved_artifacts/Bundle ${CODEPUSH_TARGET_VERSION} ^
+                    code-push-standalone release ${CODEPUSH_APPLICATION_NAME} ${WORKSPACE}/retrieved_artifacts/${BUNDLE_FOLDER_PATH} ${CODEPUSH_TARGET_VERSION} ^
                         --deploymentName ${CODEPUSH_DEPLOYMENT_MODE} ^
                         --description "${CODEPUSH_DESCRIPTION}" ^
                         --mandatory ^
