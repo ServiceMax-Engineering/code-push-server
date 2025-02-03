@@ -8,11 +8,6 @@
 
 properties([
   parameters(
-    [booleanParam(
-      name: 'PRODUCTION_INSTANCE',
-      defaultValue: true,
-      description: 'Register or Autheticate Jenkin Job with Dev Instance or Production Instance and get the access key'
-    ),
     choice(
       choices: ['ServiceMaxGo-Windows', 'ServiceMaxGo-iOS', 'ServiceMaxGo-Android'].join('\n'),
       description: 'Select Code Push registered Application Name',
@@ -28,68 +23,34 @@ properties([
       defaultValue: "",
       description: "Enter the description for the codepush release"
     ), 
-    choice(
-      choices: ['Staging'].join('\n'),
-      description: 'Select \'Staging\' for ServiceMax AppCenter Dev testing.',
-      name: 'CODEPUSH_DEPLOYMENT_MODE'
-    ), 
     string(
-      name: "RELEASE_BRANCH_NAME",
+      name: "CODEPUSH_LABEL_VERSION",
       defaultValue: "",
-      description: "ufsa-windows or ufsa relese branch name(e.g release-11.0)"
-    ), 
-    string(
-      name: "ARTIFACT_BUILD_VERSION",
-      defaultValue: "",
-      description: "Enter the valid build version from which we need to copy the artifact"
-    ), 
-    choice(
-      choices: ['ReleaseOps/ServiceMax-Engineering/ufsa-windows', 'ReleaseOps/ServiceMax-Engineering/ufsa'].join('\n'),
-      description: 'Select the Project Name',
-      name: 'PROJECT_NAME'
+      description: "Enter the label version for the codepush release (e.g v9)"
     )]
   )
 ])
 
 
-def SERVER_URL = 'https://codepush-dev2.azurewebsites.net'
 def CODEPUSH_APPLICATION_NAME = "";
-def CODEPUSH_DEPLOYMENT_MODE = ""
 def CODEPUSH_DESCRIPTION = ""
 def CODEPUSH_TARGET_VERSION = ""
-def RELEASE_BRANCH_NAME = ""
-def ARTIFACT_BUILD_VERSION = ""
-def PROJECT_NAME = ""
-def BUNDLE_FOLDER_PATH = ""
+def CODEPUSH_LABEL_VERSION = ""
+
 
 try {
-  if (env.PRODUCTION_INSTANCE != null && env.PRODUCTION_INSTANCE.toBoolean()) {
-    // Use Production Server Url here
-    SERVER_URL = 'https://codepush-dev2.azurewebsites.net'
-  }
+  
 
-  if (env.RELEASE_BRANCH_NAME) {
-    RELEASE_BRANCH_NAME = env.RELEASE_BRANCH_NAME;
+  if (env.CODEPUSH_LABEL_VERSION) {
+    CODEPUSH_LABEL_VERSION = env.CODEPUSH_LABEL_VERSION
   }
 
   if (env.CODEPUSH_APPLICATION_NAME) {
     CODEPUSH_APPLICATION_NAME = env.CODEPUSH_APPLICATION_NAME
   }
 
-  if (env.CODEPUSH_DEPLOYMENT_MODE) {
-    CODEPUSH_DEPLOYMENT_MODE = env.CODEPUSH_DEPLOYMENT_MODE;
-  }
-
   if (env.CODEPUSH_TARGET_VERSION) {
     CODEPUSH_TARGET_VERSION = env.CODEPUSH_TARGET_VERSION
-  }
-
-  if (env.ARTIFACT_BUILD_VERSION) {
-    ARTIFACT_BUILD_VERSION = env.ARTIFACT_BUILD_VERSION
-  }
-
-  if (env.PROJECT_NAME) {
-    PROJECT_NAME = env.PROJECT_NAME
   }
 
   if (env.CODEPUSH_DESCRIPTION) {
@@ -109,18 +70,13 @@ node('AWS_MFL_Node') {
         def version = "${id}"
 
         currentBuild.displayName = "${version}"
-        
 
-        if(!RELEASE_BRANCH_NAME || RELEASE_BRANCH_NAME == '') {
-            throw new Exception("Branch name is needed")
+        if(!CODEPUSH_LABEL_VERSION || CODEPUSH_LABEL_VERSION == '') {
+            throw new Exception("Code push label is needed")
         }
         
         if(!CODEPUSH_TARGET_VERSION || CODEPUSH_TARGET_VERSION == '') {
             throw new Exception("Target version is needed")
-        }
-        
-        if(!CODEPUSH_DEPLOYMENT_MODE || CODEPUSH_DEPLOYMENT_MODE == '') {
-            throw new Exception("Deploymenet Mode is needed")
         }
         
         if(!CODEPUSH_APPLICATION_NAME || CODEPUSH_APPLICATION_NAME == '') {
@@ -136,57 +92,10 @@ node('AWS_MFL_Node') {
             throw new Exception("Invalid Codepush Target Version")
         }
 
-        if(ARTIFACT_BUILD_VERSION == ''){
-            throw new Exception("Artifact Build version is not specified")
-        }
-
-        if(PROJECT_NAME == ''){
-            throw new Exception("Project Name is not specified")
-        }
-
         if(CODEPUSH_DESCRIPTION == ''){
             throw new Exception("Description is not specified")
         }
-
-        if (CODEPUSH_APPLICATION_NAME == 'ServiceMaxGo-Windows') {
-          BUNDLE_FOLDER_PATH = "Bundle-Windows"
-        } else if (CODEPUSH_APPLICATION_NAME == 'ServiceMaxGo-iOS') {
-          BUNDLE_FOLDER_PATH = "Bundle-iOS"
-        } else if (CODEPUSH_APPLICATION_NAME == 'ServiceMaxGo-Android') {
-          BUNDLE_FOLDER_PATH = "Bundle-Android"
-        }
          
-
-        
-        stage('Copy Artifacts') {
-            timeout(time: 30, unit: 'MINUTES') {
-                
-                try {
-                    
-                   step([$class: 'CopyArtifact',
-                          projectName: "${PROJECT_NAME}/${RELEASE_BRANCH_NAME}",
-                          // selector: [$class: 'StatusBuildSelector', stable: true],
-                          selector: [$class: 'SpecificBuildSelector', buildNumber: "${ARTIFACT_BUILD_VERSION}"],
-                          target: 'retrieved_artifacts/'
-                    ])
-        
-                    sh 'ls -l retrieved_artifacts'
-                    
-                } catch (exception) {
-                    
-                    sh 'ls -l retrieved_artifacts'
-
-                    echo "Copy Artifacts failed: ${exception}"
-                    
-                    
-                    /*
-                    powershell """
-                        Expand-Archive -Path 'retrieved_artifacts\\Bundle-Windows.zip' -DestinationPath 'retrieved_artifacts\\CodePush-Windows\\' -Force
-                    """
-                    */
-                }
-            }
-        }
 
         stage('Code Push Clean Directory') {
             timeout(time: 30, unit: 'MINUTES') {
@@ -233,16 +142,20 @@ node('AWS_MFL_Node') {
         //     }
         // }
 
-        stage('Releasing Updates') {
+        stage('Prmote Updates from Staging to Production') {
             timeout(time: 30, unit: 'MINUTES') {
               try {
                     
+                    def SOURCE_DEPLOYMENT = "Staging"
+                    def DEST_DEPLOYMENT = "Production"
+
                     def codePushCommand = """
-                    code-push-standalone release ${CODEPUSH_APPLICATION_NAME} ${WORKSPACE}/retrieved_artifacts/${BUNDLE_FOLDER_PATH} ${CODEPUSH_TARGET_VERSION} ^
-                        --deploymentName ${CODEPUSH_DEPLOYMENT_MODE} ^
-                        --description "${CODEPUSH_DESCRIPTION}" ^
-                        --mandatory ^
-                        --noDuplicateReleaseError
+                    code-push-standalone promote ${CODEPUSH_APPLICATION_NAME} ${SOURCE_DEPLOYMENT} ${DEST_DEPLOYMENT} ^
+                    --description "${CODEPUSH_DESCRIPTION}" ^
+                    --label "${CODEPUSH_LABEL_VERSION}" ^
+                    --targetBinaryVersion "${CODEPUSH_TARGET_VERSION}" ^
+                    --mandatory ^
+                    --noDuplicateReleaseError
                     """
                     bat codePushCommand
                     
@@ -255,6 +168,7 @@ node('AWS_MFL_Node') {
         stage('Listing the updates') {
             timeout(time: 30, unit: 'MINUTES') {
               try {
+                    def CODEPUSH_DEPLOYMENT_MODE = "Production"
                     def output = bat(script: "code-push-standalone deployment history ${CODEPUSH_APPLICATION_NAME} ${CODEPUSH_DEPLOYMENT_MODE} --format json", returnStdout: true, encoding: 'UTF-8').trim()
                     echo "CodePush Deployment History:\n${output}"
 

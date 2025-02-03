@@ -1,0 +1,178 @@
+/*
+    1. To execute this job, first we need to execute Jenkins-register Job. This will give access key and paste it in terminal or command line. Please
+    save this access key in Jenkins env variable.
+    2. Once above step is done then only we have to run this job.
+    3. Once this job is done then it will generate Staging and Production Deployment keys. Please save them in Jenkins' Env variable.
+*/
+
+
+
+properties([
+  parameters(
+    choice(
+      choices: ['ServiceMaxGo-Windows', 'ServiceMaxGo-iOS', 'ServiceMaxGo-Android'].join('\n'),
+      description: 'Select Code Push registered Application Name',
+      name: 'CODEPUSH_APPLICATION_NAME'
+    ),
+    choice(
+      choices: ['Staging', 'Production'].join('\n'),
+      description: 'Select \'Staging\' for ServiceMax AppCenter Dev testing.\nSelect \'Production\' for ServiceMax AppCenter  Production',
+      name: 'CODEPUSH_DEPLOYMENT_MODE'
+    ),
+    string(
+      name: "CODEPUSH_TARGET_VERSION",
+      defaultValue: "",
+      description: "Codepush Target binary version(e.g 7.0.0)"
+    ),  
+    string(
+      name: "CODEPUSH_LABEL_VERSION",
+      defaultValue: "",
+      description: "Enter the label version for the codepush release (e.g v9)"
+    )]
+  )
+])
+
+
+def CODEPUSH_APPLICATION_NAME = "";
+def CODEPUSH_TARGET_VERSION = ""
+def CODEPUSH_LABEL_VERSION = ""
+def CODEPUSH_DEPLOYMENT_MODE = ""
+
+try {
+  if (env.CODEPUSH_LABEL_VERSION) {
+    CODEPUSH_LABEL_VERSION = env.CODEPUSH_LABEL_VERSION
+  }
+
+  if (env.CODEPUSH_DEPLOYMENT_MODE) {
+    CODEPUSH_DEPLOYMENT_MODE = env.CODEPUSH_DEPLOYMENT_MODE;
+  }
+
+  if (env.CODEPUSH_APPLICATION_NAME) {
+    CODEPUSH_APPLICATION_NAME = env.CODEPUSH_APPLICATION_NAME
+  }
+
+  if (env.CODEPUSH_TARGET_VERSION) {
+    CODEPUSH_TARGET_VERSION = env.CODEPUSH_TARGET_VERSION
+  }
+
+} catch (all) {
+  // Mode hasn't been provided, will fall back to 'debug'
+  // This might happen on first build of a PR or if you blank out the MDOE
+}
+
+node('AWS_MFL_Node') {
+
+    try {
+
+        def id = env.BUILD_ID
+        def version = "12.0.0.${id}"
+        def bundleArtifactPath = ''
+        def zipArtifactPath = ''
+
+        currentBuild.displayName = "${version}"
+        
+        
+        if(!CODEPUSH_DEPLOYMENT_MODE || CODEPUSH_DEPLOYMENT_MODE == '') {
+            throw new Exception("Deploymenet Mode is needed")
+        }
+
+        if(!CODEPUSH_LABEL_VERSION || CODEPUSH_LABEL_VERSION == '') {
+            throw new Exception("Code push label is needed")
+        }
+        
+        if(!CODEPUSH_TARGET_VERSION || CODEPUSH_TARGET_VERSION == '') {
+            throw new Exception("Target version is needed")
+        }
+        
+        if(!CODEPUSH_APPLICATION_NAME || CODEPUSH_APPLICATION_NAME == '') {
+            throw new Exception("Code Push Application name is needed")
+        }
+        
+        def pattern = "(^(1|[1-9]\\d*)\\.?(\\d+\\.)?(\\*|\\d+)\$)"
+        
+        if(CODEPUSH_TARGET_VERSION == ''){
+            throw new Exception("Codepush Target version is not specified")
+        }
+        if(!CODEPUSH_TARGET_VERSION.matches(pattern)){
+            throw new Exception("Invalid Codepush Target Version")
+        }        
+
+        stage('Code Push Clean Directory') {
+            timeout(time: 30, unit: 'MINUTES') {
+              try {
+                  if (fileExists('code-push-server')) {
+                    bat 'rmdir /S /Q code-push-server' // For Windows
+                  }
+              } catch (exception) {
+                  echo "Code push clean directory failed: ${exception}"
+              }
+            }
+        }
+
+        stage('Clone Code Push Server Repository') {
+            timeout(time: 30, unit: 'MINUTES') {
+              try {
+                  bat "git clone https://github.com/ServiceMax-Engineering/code-push-server.git"
+              } catch(exception) {
+                  echo "Clone Code push server failed: ${exception}"
+              }
+            }
+        }
+
+        stage('Install CLI Globally') {
+            timeout(time: 30, unit: 'MINUTES') {
+              try {
+                  dir('code-push-server/cli') {
+                    bat 'nvm use 18'
+                    bat 'npm install'
+                    bat 'npm run build'
+                    bat 'npm install -g .'
+                  }
+              } catch(exception) {
+                  echo "Code push server CLI failed: ${exception}"
+              }
+            }
+        }
+
+        // stage('Login to ServieceMax app center') {
+        //     timeout(time: 30, unit: 'MINUTES') {
+        //       dir('code-push-server/cli') {
+        //             bat 'code-push-standalone login --accessKey <accessKey>'
+        //       }
+        //     }
+        // }
+
+        stage('Rollback Updates') {
+            timeout(time: 30, unit: 'MINUTES') {
+              try {
+                    
+                    def codePushCommand = """
+                      echo y|code-push-standalone rollback ${CODEPUSH_APPLICATION_NAME} ${CODEPUSH_DEPLOYMENT_MODE} --targetRelease ${CODEPUSH_LABEL_VERSION}
+                    """
+                    bat codePushCommand
+                    
+              } catch (exception) {
+                  error "Build failed: ${exception}"
+              }
+            }
+        }
+
+        stage('Listing the updates') {
+            timeout(time: 30, unit: 'MINUTES') {
+              try {
+                     def output = bat(script: "code-push-standalone deployment history ${CODEPUSH_APPLICATION_NAME} ${CODEPUSH_DEPLOYMENT_MODE} --format json", returnStdout: true, encoding: 'UTF-8').trim()
+                    echo "CodePush Deployment History:\n${output}"
+              } catch (exception) {
+                  error "Listing the updates failed: ${exception}"
+              }
+            }
+        }
+
+    } catch (all) {
+        // Clean up workspace on build failure
+        //step([$class: 'WsCleanup'])
+        error "Build failed: ${all}"
+        currentBuild.result = 'FAILURE'
+    }
+
+}
