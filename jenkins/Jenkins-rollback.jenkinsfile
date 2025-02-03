@@ -30,7 +30,6 @@ properties([
       description: "Enter the label version for the codepush release (e.g v9)"
     )]
   )
-])
 
 
 def CODEPUSH_APPLICATION_NAME = "";
