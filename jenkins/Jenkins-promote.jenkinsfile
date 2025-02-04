@@ -8,7 +8,7 @@
 
 properties([
   parameters(
-    choice(
+    [choice(
       choices: ['ServiceMaxGo-Windows', 'ServiceMaxGo-iOS', 'ServiceMaxGo-Android'].join('\n'),
       description: 'Select Code Push registered Application Name',
       name: 'CODEPUSH_APPLICATION_NAME'
@@ -29,6 +29,8 @@ properties([
       description: "Enter the label version for the codepush release (e.g v9)"
     )]
   )
+])
+
 
 
 def CODEPUSH_APPLICATION_NAME = "";
