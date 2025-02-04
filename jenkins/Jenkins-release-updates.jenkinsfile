@@ -65,7 +65,7 @@ def BUNDLE_FOLDER_PATH = ""
 try {
   if (env.PRODUCTION_INSTANCE != null && env.PRODUCTION_INSTANCE.toBoolean()) {
     // Use Production Server Url here
-    SERVER_URL = 'https://codepush-dev2.azurewebsites.net'
+     SERVER_URL = 'https://codepush-smaxprod.azurewebsites.net/'
   }
 
   if (env.RELEASE_BRANCH_NAME) {
@@ -100,6 +100,8 @@ try {
   // Mode hasn't been provided, will fall back to 'debug'
   // This might happen on first build of a PR or if you blank out the MDOE
 }
+
+echo "Server Url: ${SERVER_URL}"
 
 node('AWS_MFL_Node') {
 
