@@ -36,7 +36,7 @@ properties([
     string(
       name: "RELEASE_BRANCH_NAME",
       defaultValue: "",
-      description: "ufsa-windows or ufsa relese branch name(e.g release-11.0)"
+      description: "ufsa-windows or ufsa release branch name(e.g release-11.0)"
     ), 
     string(
       name: "ARTIFACT_BUILD_VERSION",
