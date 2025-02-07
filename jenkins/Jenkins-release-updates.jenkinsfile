@@ -151,7 +151,7 @@ node('AWS_MFL_Node') {
         }
 
         if (CODEPUSH_APPLICATION_NAME == 'ServiceMaxGo-Windows') {
-          BUNDLE_FOLDER_PATH = "Bundle-Windows"
+          BUNDLE_FOLDER_PATH = "Bundle"
         } else if (CODEPUSH_APPLICATION_NAME == 'ServiceMaxGo-iOS') {
           BUNDLE_FOLDER_PATH = "Bundle-iOS"
         } else if (CODEPUSH_APPLICATION_NAME == 'ServiceMaxGo-Android') {
@@ -243,7 +243,7 @@ node('AWS_MFL_Node') {
               try {
                     
                     def codePushCommand = """
-                    code-push-standalone release ${CODEPUSH_APPLICATION_NAME} ${WORKSPACE}/retrieved_artifacts/Bundle ${CODEPUSH_TARGET_VERSION} ^
+                    code-push-standalone release ${CODEPUSH_APPLICATION_NAME} ${WORKSPACE}/retrieved_artifacts/${BUNDLE_FOLDER_PATH} ${CODEPUSH_TARGET_VERSION} ^
                         --deploymentName ${CODEPUSH_DEPLOYMENT_MODE} ^
                         --description "${CODEPUSH_DESCRIPTION}" ^
                         --mandatory ^
