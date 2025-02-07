@@ -172,7 +172,7 @@ node('AWS_MFL_Node') {
                           target: 'retrieved_artifacts/'
                     ])
                     
-                    bat "robocopy 'retrieved_artifacts\\${BUNDLE_FOLDER_PATH}' 'retrieved_artifacts\\Bundle' /E /XO"
+                    bat "robocopy retrieved_artifacts\\${BUNDLE_FOLDER_PATH} retrieved_artifacts\\Bundle /E /XO"
 
         
                     sh 'ls -l retrieved_artifacts'
