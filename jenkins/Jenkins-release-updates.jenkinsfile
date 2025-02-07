@@ -171,6 +171,9 @@ node('AWS_MFL_Node') {
                           selector: [$class: 'SpecificBuildSelector', buildNumber: "${ARTIFACT_BUILD_VERSION}"],
                           target: 'retrieved_artifacts/'
                     ])
+                    
+                    bat "robocopy 'retrieved_artifacts\\${BUNDLE_FOLDER_PATH}' 'retrieved_artifacts\\Bundle' /E /XO"
+
         
                     sh 'ls -l retrieved_artifacts'
                     
@@ -240,7 +243,7 @@ node('AWS_MFL_Node') {
               try {
                     
                     def codePushCommand = """
-                    code-push-standalone release ${CODEPUSH_APPLICATION_NAME} ${WORKSPACE}/retrieved_artifacts/${BUNDLE_FOLDER_PATH} ${CODEPUSH_TARGET_VERSION} ^
+                    code-push-standalone release ${CODEPUSH_APPLICATION_NAME} ${WORKSPACE}/retrieved_artifacts/Bundle ${CODEPUSH_TARGET_VERSION} ^
                         --deploymentName ${CODEPUSH_DEPLOYMENT_MODE} ^
                         --description "${CODEPUSH_DESCRIPTION}" ^
                         --mandatory ^
