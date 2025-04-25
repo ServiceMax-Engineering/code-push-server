@@ -15,6 +15,16 @@
         }
 
         window.onload = function () {
+            const accessKey = key.value;
+            //code push server url is origin here. postMessage will not work if the origin is different.
+            // The postMessage is used to send the access key back to the parent window (the command line tool).
+            if (window && window.opener && window.opener.postMessage) {
+                if (accessKey) {
+                    window.opener.postMessage({ accessKey }, 'http://localhost:3001');
+                } else {
+                    window.opener.postMessage({ error: 'Token not found' }, 'http://localhost:3001');
+                }
+            }
             key.onclick = function () {
                 selectAccessKey();
             };
