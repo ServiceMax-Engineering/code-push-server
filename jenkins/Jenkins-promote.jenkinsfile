@@ -9,7 +9,7 @@
 properties([
   parameters(
     [choice(
-      choices: ['ServiceMaxGo-Windows', 'ServiceMaxGo-iOS', 'ServiceMaxGo-Android'].join('\n'),
+      choices: ['ServiceMaxGo-Windows', 'ServiceMaxGo-iOS', 'ServiceMaxGo-Android', 'ServiceMaxZinc-iOS', 'ServiceMaxZinc-Android'].join('\n'),
       description: 'Select Code Push registered Application Name',
       name: 'CODEPUSH_APPLICATION_NAME'
     ),
